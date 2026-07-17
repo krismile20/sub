@@ -155,19 +155,18 @@ jobs:
           git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git
           cp out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
           cd AnyKernel3
-          cat > anykernel.sh << 'AK3'
-kernel.string=LG V30 Stable KSU-Next + Droidspaces $(date +%Y%m%d)
-do.devicecheck=1
-device.name1=joan
-device.name2=H930
-device.name3=H930DS
-device.name4=US998
-block=/dev/block/bootdevice/by-name/boot
-is_slot_device=0
-ramdisk_compression=gzip
-patch_vbmeta_flag=auto
-AK3
+          echo 'kernel.string=LG V30 Stable KSU-Next + Droidspaces $(date +%Y%m%d)' > anykernel.sh
+          echo 'do.devicecheck=1' >> anykernel.sh
+          echo 'device.name1=joan' >> anykernel.sh
+          echo 'device.name2=H930' >> anykernel.sh
+          echo 'device.name3=H930DS' >> anykernel.sh
+          echo 'device.name4=US998' >> anykernel.sh
+          echo 'block=/dev/block/bootdevice/by-name/boot' >> anykernel.sh
+          echo 'is_slot_device=0' >> anykernel.sh
+          echo 'ramdisk_compression=gzip' >> anykernel.sh
+          echo 'patch_vbmeta_flag=auto' >> anykernel.sh
           zip -r9 ../LG-V30-Stable-KSU-Droidspaces-$(date +%Y%m%d).zip ./*
+          cd ..
           echo "✅ AnyKernel3 刷机包已生成"
 
       - name: 上传刷机包
@@ -186,3 +185,6 @@ AK3
       - name: 上传编译日志
         if: always()
         uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: joan-kernelsu/build.log
