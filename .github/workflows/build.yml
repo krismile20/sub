@@ -14,20 +14,16 @@ jobs:
           repository: TosteRino/joan-kernelsu
           path: joan-kernelsu
 
-      - name: 安装编译依赖
+      - name: 安装编译依赖（含 Clang + ARM64/ARM32 交叉编译器）
         run: |
           sudo apt-get update
           sudo apt-get install -y git wget curl xz-utils \
             build-essential ccache \
             libncurses5-dev libssl-dev libelf-dev \
-            bison flex bc python3
-
-      - name: 下载 AOSP GCC 4.9 工具链
-        run: |
-          mkdir -p $HOME/toolchain
-          git clone https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 \
-            --depth=1 $HOME/toolchain/aarch64-linux-android-4.9
-          echo "$HOME/toolchain/aarch64-linux-android-4.9/bin" >> $GITHUB_PATH
+            bison flex bc python3 \
+            clang lld llvm \
+            gcc-aarch64-linux-gnu \
+            gcc-arm-linux-gnueabi
 
       - name: 启用 ccache 加速
         uses: hendrikmuhs/ccache-action@v1.2
@@ -39,7 +35,8 @@ jobs:
         working-directory: joan-kernelsu
         run: |
           wget -q -O d1.patch https://raw.githubusercontent.com/ravindu644/Droidspaces-OSS/main/Documentation/resources/kernel-patches/non-GKI/01.fix_kernel_panic_in_xt_qtaguid.patch
-          wget -q -O d2.patch "https://raw.githubusercontent.com/ravindu644/Droidspaces-OSS/main/Documentation/resources/kernel-patches/non-GKI/02.fix_restore%20cgroup%20file%20prefix%20handling%20.patch"
+          # 注意：原始 URL 包含 %20 编码的空格，改用 curl 处理
+          curl -sL -o d2.patch "https://raw.githubusercontent.com/ravindu644/Droidspaces-OSS/main/Documentation/resources/kernel-patches/non-GKI/02.fix_restore%20cgroup%20file%20prefix%20handling%20.patch"
           patch -p1 < d1.patch
           patch -p1 < d2.patch
           echo "✅ Droidspaces 补丁已应用"
@@ -119,27 +116,36 @@ jobs:
             echo "CONFIG_SECCOMP_FILTER=y"
             echo ""
             echo "# ==================== 关键修复 ===================="
-            echo "CONFIG_ANDROID_PARANOID_NETWORK=n"
+            # CONFIG_ANDROID_PARANOID_NETWORK 不设置 = 默认关闭，不写 =n 避免语法问题
           } > arch/arm64/configs/droidspaces.config
           echo "✅ Droidspaces 配置片段已创建"
 
-      - name: 合并配置并解析依赖
+      - name: 合并配置（使用 lineageos_joan_defconfig + droidspaces）
         working-directory: joan-kernelsu
         run: |
           ./scripts/kconfig/merge_config.sh -m -O out \
-            arch/arm64/configs/msm8998_defconfig \
+            arch/arm64/configs/lineageos_joan_defconfig \
             arch/arm64/configs/droidspaces.config
           make ARCH=arm64 O=./out olddefconfig
           grep -E "CONFIG_KSU=|CONFIG_NETFILTER=|CONFIG_NAMESPACES=|CONFIG_CGROUPS=" out/.config
           echo "✅ 配置合并完成"
 
-      - name: 编译内核
+      - name: 编译内核（Clang + ARM64/ARM32 交叉编译器）
         working-directory: joan-kernelsu
         run: |
-          make ARCH=arm64 O=./out olddefconfig
+          export ARCH=arm64
+          export SUBARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+          export CLANG_TRIPLE=aarch64-linux-gnu-
+
+          make ARCH=arm64 O=./out CC=clang REAL_CC=clang olddefconfig
           make ARCH=arm64 O=./out \
-            CROSS_COMPILE=aarch64-linux-android- \
-            CC="ccache aarch64-linux-android-gcc" \
+            CC=clang \
+            REAL_CC=clang \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
             Image.gz-dtb -j$(nproc --all) 2>&1 | tee build.log
           echo "✅ 编译完成"
 
@@ -155,17 +161,21 @@ jobs:
           git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git
           cp out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
           cd AnyKernel3
-          echo 'kernel.string=LG V30 Stable KSU-Next + Droidspaces $(date +%Y%m%d)' > anykernel.sh
-          echo 'do.devicecheck=1' >> anykernel.sh
-          echo 'device.name1=joan' >> anykernel.sh
-          echo 'device.name2=H930' >> anykernel.sh
-          echo 'device.name3=H930DS' >> anykernel.sh
-          echo 'device.name4=US998' >> anykernel.sh
-          echo 'block=/dev/block/bootdevice/by-name/boot' >> anykernel.sh
-          echo 'is_slot_device=0' >> anykernel.sh
-          echo 'ramdisk_compression=gzip' >> anykernel.sh
-          echo 'patch_vbmeta_flag=auto' >> anykernel.sh
-          zip -r9 ../LG-V30-Stable-KSU-Droidspaces-$(date +%Y%m%d).zip ./*
+          # 清理 .git 避免打包进去
+          rm -rf .git
+          cat > anykernel.sh << 'EOF'
+kernel.string=LG V30 Stable KSU-Next + Droidspaces $(date +%Y%m%d)
+do.devicecheck=1
+device.name1=joan
+device.name2=H930
+device.name3=H930DS
+device.name4=US998
+block=/dev/block/bootdevice/by-name/boot
+is_slot_device=0
+ramdisk_compression=gzip
+patch_vbmeta_flag=auto
+EOF
+          zip -r9 "../LG-V30-Stable-KSU-Droidspaces-$(date +%Y%m%d).zip" ./*
           cd ..
           echo "✅ AnyKernel3 刷机包已生成"
 
