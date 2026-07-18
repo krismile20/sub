@@ -1,4 +1,4 @@
-name: Build LG V30 Kernel
+name: KBuild
 
 on:
   workflow_dispatch:
