@@ -33,3 +33,11 @@ jobs:
         with:
           key: joan-kernelsu-ccache
           max-size: 5G
+
+      - name: Apply Droidspaces patches
+        working-directory: joan-kernelsu
+        run: |
+          wget -q -O d1.patch https://raw.githubusercontent.com/ravindu644/Droidspaces-OSS/main/Documentation/resources/kernel-patches/non-GKI/01.fix_kernel_panic_in_xt_qtaguid.patch
+          curl -sL -o d2.patch "https://raw.githubusercontent.com/ravindu644/Droidspaces-OSS/main/Documentation/resources/kernel-patches/non-GKI/02.fix_restore%20cgroup%20file%20prefix%20handling%20.patch"
+          patch -p1 < d1.patch
+          patch -p1 < d2.patch
