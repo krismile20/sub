@@ -2,8 +2,6 @@ name: Build LG V30 Kernel
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ main ]
 
 jobs:
   build:
@@ -140,7 +138,7 @@ CONFIGEOF
           cd AnyKernel3
           rm -rf .git
           cat > anykernel.sh << 'EOF'
-kernel.string=LG V30 Stable KSU-Next + Droidspaces $(date +%Y%m%d)
+kernel.string=LG V30 Stable KSU-Next + Droidspaces
 do.devicecheck=1
 device.name1=joan
 device.name2=H930
@@ -151,14 +149,14 @@ is_slot_device=0
 ramdisk_compression=gzip
 patch_vbmeta_flag=auto
 EOF
-          zip -r9 "../LG-V30-Stable-KSU-Droidspaces-$(date +%Y%m%d).zip" ./*
+          zip -r9 "../LG-V30-Stable-KSU-Droidspaces.zip" ./*
           cd ..
 
       - name: Upload flashable zip
         uses: actions/upload-artifact@v4
         with:
           name: LG-V30-Flashable-ZIP
-          path: joan-kernelsu/LG-V30-Stable-KSU-Droidspaces-*.zip
+          path: joan-kernelsu/LG-V30-Stable-KSU-Droidspaces.zip
           if-no-files-found: error
 
       - name: Upload raw kernel image
